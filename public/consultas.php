@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../includes/login_manager.php';
 require_once __DIR__ . '/../includes/consultas_manager.php';
 require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../includes/app_runtime.php';
 
 // Validar sesión
 if (!validar_sesion()) { 
@@ -17,21 +18,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $csrf_token_post = $_POST['csrf_token'] ?? '';
 if (!verify_csrf_token($csrf_token_post)) {
-    die('Error de seguridad');
+  app_audit_log('consulta_web', 'fail', ['reason' => 'csrf_invalid']);
+  app_respond_text_error('Error de seguridad', 403);
 }
 
 $consulta_id      = isset($_POST['consulta_id']) ? (int)$_POST['consulta_id'] : 0;
 $consulta_data    = $consulta_id > 0 ? get_consulta_predefinida_por_id($consulta_id) : null;
 
 if (!$consulta_data) {
-    die('Consulta no valida');
+  app_audit_log('consulta_web', 'fail', ['reason' => 'consulta_id_invalid', 'consulta_id' => $consulta_id]);
+  app_respond_text_error('Consulta no valida', 400);
 }
 
 $consulta_nombre  = $consulta_data['consulta'] ?? 'consulta';
 
 $parse = parse_query_select_segura($consulta_data['query'] ?? '');
 if (isset($parse['error'])) {
-    die('Consulta predefinida no permitida');
+  app_audit_log('consulta_web', 'fail', ['reason' => 'query_policy_denied', 'consulta_id' => $consulta_id]);
+  app_respond_text_error('Consulta predefinida no permitida', 403);
 }
 
 $filtro_columna   = $_POST['filtro_columna'] ?? '';
@@ -60,6 +64,15 @@ if ($filtro_columna !== '' && $filtro_operador !== '') {
 }
 
 $resultado = ejecutar_consulta_segura($parse['tabla'], $parse['columns'], $filtros);
+if (!isset($resultado['error'])) {
+  app_audit_log('consulta_web', 'ok', [
+    'consulta_id' => $consulta_id,
+    'tabla' => $parse['tabla'],
+    'total' => isset($resultado['total_registros']) ? (int)$resultado['total_registros'] : 0
+  ]);
+} else {
+  app_audit_log('consulta_web', 'fail', ['consulta_id' => $consulta_id, 'reason' => 'query_execution_error']);
+}
 
 $fecha     = date('d/m/Y H:i:s');
 $registros = isset($resultado['total_registros']) ? $resultado['total_registros'] : 0;
