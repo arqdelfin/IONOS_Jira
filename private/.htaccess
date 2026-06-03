@@ -1,0 +1,17 @@
+# Proteger directorio private
+# Denegar acceso directo a archivos en esta carpeta
+
+# Deshabilitar listado de directorios
+Options -Indexes
+
+# Denegar acceso a todos los archivos
+<FilesMatch ".*">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Permitir acceso solo a través de PHP
+<FilesMatch "\.php$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>

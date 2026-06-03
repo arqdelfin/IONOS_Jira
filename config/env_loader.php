@@ -42,7 +42,7 @@ function get_env($key, $default = null) {
     return $value !== false ? $value : $default;
 }
 
-// Cargar archivo .env al iniciar
-$env_file = __DIR__ . '/../.env';
+// Cargar archivo .env al iniciar (desde carpeta private)
+$env_file = __DIR__ . '/../private/.env';
 load_env_file($env_file);
 ?>

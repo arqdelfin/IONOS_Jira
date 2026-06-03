@@ -2,6 +2,9 @@
 .env
 .env.local
 .env.*.local
+private/.env
+private/.env.local
+private/.env.*.local
 .DS_Store
 .vscode/
 *.log
