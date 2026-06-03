@@ -22,6 +22,33 @@ function configure_session_security() {
 }
 
 /**
+ * Determina si el valor almacenado ya parece un hash soportado por password_hash.
+ */
+function password_hash_almacenado_valido($storedPassword) {
+    return is_string($storedPassword) && password_get_info($storedPassword)['algo'] !== null;
+}
+
+/**
+ * Migra una contraseña heredada a password_hash de PHP.
+ */
+function migrar_password_usuario($usuario, $plainPassword) {
+    global $conn;
+
+    $nuevoHash = password_hash($plainPassword, PASSWORD_DEFAULT);
+    $stmt = $conn->prepare("UPDATE t_usuarios SET password_hash = ? WHERE usuario = ?");
+    if (!$stmt) {
+        app_error_log('No se pudo preparar la migracion de password', ['usuario' => $usuario]);
+        return false;
+    }
+
+    $stmt->bind_param("ss", $nuevoHash, $usuario);
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    return $ok;
+}
+
+/**
  * Verifica el login de un usuario y crea sesión.
  * Devuelve un array con ['status'=>bool, 'mensaje'=>string].
  */
@@ -58,8 +85,20 @@ function verificar_login($usuario, $password) {
     $resultado = $stmt->get_result();
 
     if ($fila = $resultado->fetch_assoc()) {
-        // Verificar password de forma segura con password_verify()
-        if (password_verify($password, $fila['password_hash'])) {
+        $storedPassword = (string)$fila['password_hash'];
+        $loginValido = false;
+
+        if (password_hash_almacenado_valido($storedPassword)) {
+            $loginValido = password_verify($password, $storedPassword);
+        } else {
+            $loginValido = hash_equals($storedPassword, $password);
+            if ($loginValido) {
+                migrar_password_usuario($fila['usuario'], $password);
+                app_audit_log('password_migration', 'ok', ['usuario' => $fila['usuario']]);
+            }
+        }
+
+        if ($loginValido) {
             app_login_rate_limit_reset($usuario, $ip);
             session_regenerate_id(true);
             $_SESSION['usuario'] = $fila['usuario'];
