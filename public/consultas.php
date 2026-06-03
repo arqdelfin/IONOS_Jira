@@ -99,6 +99,11 @@ $csrf_token = generate_csrf_token();
       <?php else: ?>
         <?php echo htmlspecialchars($filtro_operador); ?> "<?php echo htmlspecialchars($filtro_valor); ?>"
       <?php endif; ?>
+      <form method="POST" action="consultas.php" style="display:inline;margin-left:10px;">
+        <input type="hidden" name="consulta_id" value="<?php echo (int)$consulta_id; ?>">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+        <button type="submit" style="padding:2px 8px;font-size:0.85rem;cursor:pointer;">Quitar filtro</button>
+      </form>
     </div>
   <?php endif; ?>
 </div>
