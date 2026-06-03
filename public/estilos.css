@@ -1,0 +1,282 @@
+/* ============================================================
+   ESTILOS GLOBALES - WebDU versión 9 (filtrado contextual)
+   ============================================================ */
+
+:root {
+  --color-primario: #0050a0;
+  --color-secundario: #e6f0ff;
+  --color-hover: #cce0ff;
+  --texto-principal: #222;
+  --fuente-base: "Segoe UI", Arial, sans-serif;
+}
+
+/* ============================================================
+   ESTRUCTURA GENERAL
+   ============================================================ */
+body {
+  font-family: var(--fuente-base);
+  margin: 0;
+  background: #fafafa;
+  color: var(--texto-principal);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+h2 {
+  margin: 0;
+  padding: 10px 20px;
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+}
+
+/* ============================================================
+   CABECERA FIJA
+   ============================================================ */
+.cabecera {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: var(--color-primario);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+.cab-izq { font-weight: bold; }
+.cab-der a {
+  color: white;
+  text-decoration: none;
+  margin-left: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cab-der a:hover { text-decoration: underline; }
+
+/* ============================================================
+   BLOQUE DE INFORMACIÓN DE CONSULTA
+   ============================================================ */
+.info-consulta {
+  margin-top: 60px;
+  background: var(--color-secundario);
+  padding: 8px 20px;
+  border-bottom: 1px solid #ddd;
+  font-size: 0.95rem;
+}
+
+/* ============================================================
+   BOTONES
+   ============================================================ */
+button {
+  background: var(--color-primario);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+button:hover {
+  background: #0066cc;
+}
+
+/* ============================================================
+   TABLA DE DATOS
+   ============================================================ */
+.bloque-tabla {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0 20px 80px 20px; /* deja espacio para el pie fijo */
+}
+
+/* Cabecera de la tabla */
+.tabla-header {
+  background: var(--color-primario);
+  color: white;
+  border-bottom: 2px solid #003a80;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Cuerpo de la tabla */
+.tabla-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: #fff;
+}
+
+/* Estructura de tabla */
+.tabla-header table,
+.tabla-body table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* Celdas */
+.tabla-header th {
+  padding: 8px;
+  text-align: left;
+  border-right: 1px solid #003a80;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+}
+.tabla-header th:last-child { border-right: none; }
+
+.tabla-body td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Alternancia de color y hover */
+tr:nth-child(even) { background: #f9f9f9; }
+.tabla-body tbody tr:hover {
+  background: var(--color-hover);
+}
+
+/* ============================================================
+   PIE FIJO Y PAGINADOR
+   ============================================================ */
+.pie-consulta {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  background: var(--color-secundario);
+  border-top: 1px solid #ccc;
+  padding: 10px 20px;
+  z-index: 10;
+}
+.pie-consulta .izquierda { justify-self: start; }
+.pie-consulta .centro { justify-self: center; font-size: 0.9rem; }
+.pie-consulta .derecha { justify-self: end; }
+
+#paginador {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.9rem;
+}
+#paginador button {
+  background: var(--color-primario);
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+#paginador button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#paginador select {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px;
+  font-size: 0.9rem;
+}
+
+/* ============================================================
+   MENSAJES Y VACÍOS
+   ============================================================ */
+.mensaje-error {
+  padding-left: 20px;
+  color: red;
+}
+.mensaje-vacio {
+  padding-left: 20px;
+  color: #666;
+}
+
+/* ============================================================
+   MODAL DE FILTRO CONTEXTUAL
+   ============================================================ */
+.filtro-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.filtro-box {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  min-width: 300px;
+  max-width: 90%;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.filtro-box h3 {
+  margin-top: 0;
+  color: var(--color-primario);
+  font-size: 1rem;
+}
+
+.filtro-box label {
+  display: block;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.filtro-box input,
+.filtro-box select {
+  width: 100%;
+  padding: 6px;
+  margin-top: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: var(--fuente-base);
+}
+
+.filtro-box button {
+  background: var(--color-primario);
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 5px;
+  margin-top: 10px;
+}
+.filtro-box button:hover {
+  background: #0066cc;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .tabla-header th,
+  .tabla-body td {
+    font-size: 0.85rem;
+    padding: 6px;
+  }
+
+  .pie-consulta {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+    text-align: center;
+  }
+
+  #paginador {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}

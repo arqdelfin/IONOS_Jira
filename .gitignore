@@ -1,0 +1,13 @@
+# Archivos y directorios ignorados
+.env
+.env.local
+.env.*.local
+.DS_Store
+.vscode/
+*.log
+logs/
+*.swp
+*.swo
+.idea/
+node_modules/
+vendor/
