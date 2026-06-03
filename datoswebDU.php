@@ -60,19 +60,28 @@ switch ($accion) {
             exit;
         }
 
-        // Obtener parámetros de consulta
-        $tabla = $_POST['tabla'] ?? '';
-        $columns = $_POST['columns'] ?? ['*'];
-        $filtros = $_POST['filtros'] ?? [];
-        
-        // Validar entrada
-        if (empty($tabla)) {
-            echo json_encode(['status'=>'error','mensaje'=>'Tabla no especificada']);
+        $consulta_id = isset($_POST['consulta_id']) ? (int)$_POST['consulta_id'] : 0;
+        if ($consulta_id <= 0) {
+            echo json_encode(['status'=>'error','mensaje'=>'Consulta no válida']);
             exit;
         }
+
+        $consulta_data = get_consulta_predefinida_por_id($consulta_id);
+        if (!$consulta_data) {
+            echo json_encode(['status'=>'error','mensaje'=>'Consulta no encontrada']);
+            exit;
+        }
+
+        $parse = parse_query_select_segura($consulta_data['query'] ?? '');
+        if (isset($parse['error'])) {
+            echo json_encode(['status'=>'error','mensaje'=>'Consulta no permitida']);
+            exit;
+        }
+
+        $filtros = $_POST['filtros'] ?? [];
         
         // Ejecutar consulta segura
-        $resultado = ejecutar_consulta_segura($tabla, $columns, $filtros);
+        $resultado = ejecutar_consulta_segura($parse['tabla'], $parse['columns'], $filtros);
         
         if (isset($resultado['error'])) {
             echo json_encode(['status'=>'error','mensaje'=>$resultado['error']]);

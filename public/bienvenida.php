@@ -11,7 +11,7 @@ if (!validar_sesion()) {
 
 require_once __DIR__ . '/../config/conexion.php';
 
-$result = $conn->query("SELECT consulta, query FROM t_consultasweb");
+$result = $conn->query("SELECT id, consulta FROM t_consultasweb ORDER BY consulta ASC");
 $consultas = [];
 while ($row = $result->fetch_assoc()) { $consultas[] = $row; }
 
@@ -34,10 +34,10 @@ $csrf_token = generate_csrf_token();
   <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
   
   <label>Seleccione una consulta:</label>
-  <select name="query" id="select-consulta" required>
+  <select name="consulta_id" id="select-consulta" required>
     <?php foreach ($consultas as $c): ?>
       <option 
-        value="<?php echo htmlspecialchars($c['query']); ?>" 
+        value="<?php echo (int)$c['id']; ?>"
         data-nombre="<?php echo htmlspecialchars($c['consulta']); ?>">
         <?php echo htmlspecialchars($c['consulta']); ?>
       </option>

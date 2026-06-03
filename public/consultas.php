@@ -10,8 +10,29 @@ if (!validar_sesion()) {
     exit; 
 }
 
-$query            = $_POST['query']     ?? '';
-$consulta_nombre  = $_POST['consulta']  ?? 'consulta';
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: ./bienvenida.php');
+    exit;
+}
+
+$csrf_token_post = $_POST['csrf_token'] ?? '';
+if (!verify_csrf_token($csrf_token_post)) {
+    die('Error de seguridad');
+}
+
+$consulta_id      = isset($_POST['consulta_id']) ? (int)$_POST['consulta_id'] : 0;
+$consulta_data    = $consulta_id > 0 ? get_consulta_predefinida_por_id($consulta_id) : null;
+
+if (!$consulta_data) {
+    die('Consulta no valida');
+}
+
+$consulta_nombre  = $consulta_data['consulta'] ?? 'consulta';
+
+$parse = parse_query_select_segura($consulta_data['query'] ?? '');
+if (isset($parse['error'])) {
+    die('Consulta predefinida no permitida');
+}
 
 $filtro_columna   = $_POST['filtro_columna'] ?? '';
 $filtro_operador  = $_POST['filtro_operador'] ?? '';
@@ -19,12 +40,26 @@ $filtro_valor     = $_POST['filtro_valor'] ?? '';
 $filtro_desde     = $_POST['filtro_desde'] ?? '';
 $filtro_hasta     = $_POST['filtro_hasta'] ?? '';
 
-$resultado = $query ? ejecutar_consulta($query,
-                                        $filtro_columna,
-                                        $filtro_operador,
-                                        $filtro_valor,
-                                        $filtro_desde,
-                                        $filtro_hasta) : [];
+$filtros = [];
+if ($filtro_columna !== '' && $filtro_operador !== '') {
+  if ($filtro_operador === 'fecha') {
+    $filtros[] = [
+      'columna' => $filtro_columna,
+      'operador' => 'fecha_entre',
+      'valor' => '',
+      'desde' => $filtro_desde,
+      'hasta' => $filtro_hasta
+    ];
+  } else {
+    $filtros[] = [
+      'columna' => $filtro_columna,
+      'operador' => $filtro_operador,
+      'valor' => $filtro_valor
+    ];
+  }
+}
+
+$resultado = ejecutar_consulta_segura($parse['tabla'], $parse['columns'], $filtros);
 
 $fecha     = date('d/m/Y H:i:s');
 $registros = isset($resultado['total_registros']) ? $resultado['total_registros'] : 0;
@@ -66,7 +101,7 @@ $csrf_token = generate_csrf_token();
 
   <!-- Formulario oculto -->
   <form id="filtroForm" method="POST" action="consultas.php" style="display:none;">
-    <input type="hidden" name="query" value="<?php echo htmlspecialchars($query); ?>">
+    <input type="hidden" name="consulta_id" value="<?php echo (int)$consulta_id; ?>">
     <input type="hidden" name="consulta" value="<?php echo htmlspecialchars($consulta_nombre); ?>">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
   </form>
@@ -140,8 +175,13 @@ $csrf_token = generate_csrf_token();
   <div class="pie-consulta">
     <div class="izquierda">
       <form method="POST" action="../includes/exportar_csv.php" style="margin:0;">
-        <input type="hidden" name="query" value="<?php echo htmlspecialchars($query); ?>">
+        <input type="hidden" name="consulta_id" value="<?php echo (int)$consulta_id; ?>">
         <input type="hidden" name="consulta_nombre" value="<?php echo htmlspecialchars($consulta_nombre); ?>">
+        <input type="hidden" name="filtro_columna" value="<?php echo htmlspecialchars($filtro_columna); ?>">
+        <input type="hidden" name="filtro_operador" value="<?php echo htmlspecialchars($filtro_operador); ?>">
+        <input type="hidden" name="filtro_valor" value="<?php echo htmlspecialchars($filtro_valor); ?>">
+        <input type="hidden" name="filtro_desde" value="<?php echo htmlspecialchars($filtro_desde); ?>">
+        <input type="hidden" name="filtro_hasta" value="<?php echo htmlspecialchars($filtro_hasta); ?>">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
         <button type="submit">Exportar CSV</button>
       </form>

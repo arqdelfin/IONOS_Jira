@@ -8,6 +8,86 @@ require_once __DIR__ . '/../config/conexion.php';
 require_once __DIR__ . '/security.php';
 
 /**
+ * Obtiene una consulta predefinida por ID.
+ */
+function get_consulta_predefinida_por_id($consulta_id) {
+    global $conn;
+
+    $stmt = $conn->prepare("SELECT id, consulta, query FROM t_consultasweb WHERE id = ? LIMIT 1");
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param("i", $consulta_id);
+    $stmt->execute();
+    $resultado = $stmt->get_result();
+    $consulta = $resultado ? $resultado->fetch_assoc() : null;
+    $stmt->close();
+
+    return $consulta ?: null;
+}
+
+/**
+ * Valida y parsea una consulta SELECT con politica estricta.
+ * Formato permitido: SELECT col1,col2 FROM tabla
+ */
+function parse_query_select_segura($query) {
+    $query = trim((string)$query);
+    $query = rtrim($query, "; \t\n\r\0\x0B");
+
+    if ($query === '') {
+        return ['error' => 'Consulta vacia'];
+    }
+
+    if (preg_match('/(--|#|\/\*)/', $query)) {
+        return ['error' => 'Consulta no permitida'];
+    }
+
+    if (preg_match('/\b(union|insert|update|delete|drop|alter|create|grant|revoke|truncate|outfile|load_file|sleep|benchmark)\b/i', $query)) {
+        return ['error' => 'Consulta no permitida'];
+    }
+
+    if (!preg_match('/^SELECT\s+(.+)\s+FROM\s+`?([a-zA-Z0-9_]+)`?$/i', $query, $matches)) {
+        return ['error' => 'Formato de consulta no permitido'];
+    }
+
+    $columns_raw = trim($matches[1]);
+    $tabla = $matches[2];
+
+    $columns = [];
+    if ($columns_raw === '*') {
+        $columns = ['*'];
+    } else {
+        $partes = array_map('trim', explode(',', $columns_raw));
+        foreach ($partes as $col) {
+            $col = trim($col, "` ");
+            if (!preg_match('/^[a-zA-Z0-9_]+$/', $col)) {
+                return ['error' => 'Columnas no permitidas en consulta'];
+            }
+            $columns[] = $col;
+        }
+    }
+
+    return [
+        'tabla' => $tabla,
+        'columns' => $columns
+    ];
+}
+
+/**
+ * Ejecuta bind_param con numero variable de parametros por referencia.
+ */
+function bind_params_stmt($stmt, $types, $params) {
+    $refs = [];
+    $refs[] = $types;
+    foreach ($params as $key => $value) {
+        $refs[] = &$params[$key];
+    }
+
+    return call_user_func_array([$stmt, 'bind_param'], $refs);
+}
+
+/**
  * Obtiene listado seguro de tablas disponibles
  */
 function get_tablas_disponibles() {
@@ -142,8 +222,7 @@ function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = []) {
     
     // Bind parameters si existen
     if (!empty($params)) {
-        array_unshift($params, $types);
-        call_user_func_array([$stmt, 'bind_param'], $params);
+        bind_params_stmt($stmt, $types, $params);
     }
     
     $stmt->execute();
