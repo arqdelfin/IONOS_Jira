@@ -1,3 +1,9 @@
+<?php
+require_once __DIR__ . '/../includes/login_manager.php';
+require_once __DIR__ . '/../includes/security.php';
+start_secure_session();
+$csrf_token = generate_csrf_token();
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -25,13 +31,6 @@
 </style>
 </head>
 <body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#f0f2f5;">
-
-<?php
-// Inicializar sesión y generar token CSRF
-session_start();
-require_once __DIR__ . '/../includes/security.php';
-$csrf_token = generate_csrf_token();
-?>
 
 <div class="login-container">
 

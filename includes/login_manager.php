@@ -1,5 +1,5 @@
 <?php
-session_start();
+start_secure_session();
 ini_set('default_charset', 'UTF-8');
 mb_internal_encoding('UTF-8');
 mb_http_output('UTF-8');
@@ -12,13 +12,27 @@ require_once __DIR__ . '/app_runtime.php';
  * Configura las opciones de sesión de forma segura
  */
 function configure_session_security() {
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+
     session_set_cookie_params([
         'lifetime' => get_env('SESSION_TIMEOUT', 1800),
         'path' => '/',
-        'secure' => !get_env('APP_DEBUG', 'false'),
+        'secure' => $isHttps,
         'httponly' => true,
         'samesite' => 'Strict'
     ]);
+}
+
+/**
+ * Inicia la sesión con la configuracion segura si todavía no existe.
+ */
+function start_secure_session() {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        configure_session_security();
+        session_start();
+    }
 }
 
 /**
