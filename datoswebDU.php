@@ -9,8 +9,8 @@ require_once __DIR__ . '/includes/consultas_manager.php';
 require_once __DIR__ . '/includes/security.php';
 require_once __DIR__ . '/includes/app_runtime.php';
 
-// Configurar seguridad de sesión
-configure_session_security();
+// Configurar e iniciar la sesión de forma segura
+start_secure_session();
 
 $accion = $_POST['accion'] ?? $_GET['accion'] ?? '';
 if ($accion === '') { 
