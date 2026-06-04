@@ -201,10 +201,18 @@ function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = []) {
                 $hasta = isset($filtro['hasta']) ? trim((string)$filtro['hasta']) : '';
 
                 if ($desde !== '' && $hasta !== '') {
-                    $where_conditions[] = "`$columna` BETWEEN ? AND ?";
-                    $types .= 'ss';
-                    $params[] = $desde;
-                    $params[] = $hasta;
+                    if ($desde === $hasta) {
+                        // Si la columna es DATETIME, incluir todo el dia: [desde 00:00:00, siguiente dia)
+                        $where_conditions[] = "(`$columna` >= ? AND `$columna` < DATE_ADD(?, INTERVAL 1 DAY))";
+                        $types .= 'ss';
+                        $params[] = $desde;
+                        $params[] = $desde;
+                    } else {
+                        $where_conditions[] = "`$columna` BETWEEN ? AND ?";
+                        $types .= 'ss';
+                        $params[] = $desde;
+                        $params[] = $hasta;
+                    }
                 } elseif ($desde !== '') {
                     $where_conditions[] = "`$columna` >= ?";
                     $types .= 's';
@@ -287,7 +295,11 @@ function ejecutar_consulta($query,
             if ($filtro_desde && $filtro_hasta) {
                 $valor_desde = $conn->real_escape_string($filtro_desde);
                 $valor_hasta = $conn->real_escape_string($filtro_hasta);
-                $query .= $prefijo . "`$filtro_columna` BETWEEN '$valor_desde' AND '$valor_hasta'";
+                if ($valor_desde === $valor_hasta) {
+                    $query .= $prefijo . "(`$filtro_columna` >= '$valor_desde' AND `$filtro_columna` < DATE_ADD('$valor_desde', INTERVAL 1 DAY))";
+                } else {
+                    $query .= $prefijo . "`$filtro_columna` BETWEEN '$valor_desde' AND '$valor_hasta'";
+                }
             } elseif ($filtro_desde) {
                 $valor_desde = $conn->real_escape_string($filtro_desde);
                 $query .= $prefijo . "`$filtro_columna` >= '$valor_desde'";
