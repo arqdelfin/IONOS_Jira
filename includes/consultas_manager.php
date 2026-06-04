@@ -90,6 +90,69 @@ function bind_params_stmt($stmt, $types, $params) {
 }
 
 /**
+ * Normaliza filtros recibidos desde POST en una lista segura y compatible.
+ */
+function normalizar_filtros_desde_post($post, $max_filtros = 5) {
+    $columnas = $post['filtro_columna'] ?? [];
+    $operadores = $post['filtro_operador'] ?? [];
+    $valores = $post['filtro_valor'] ?? [];
+    $desdes = $post['filtro_desde'] ?? [];
+    $hastas = $post['filtro_hasta'] ?? [];
+
+    if (!is_array($columnas)) { $columnas = [$columnas]; }
+    if (!is_array($operadores)) { $operadores = [$operadores]; }
+    if (!is_array($valores)) { $valores = [$valores]; }
+    if (!is_array($desdes)) { $desdes = [$desdes]; }
+    if (!is_array($hastas)) { $hastas = [$hastas]; }
+
+    $filtros = [];
+    $vistos = [];
+
+    $total = max(count($columnas), count($operadores), count($valores), count($desdes), count($hastas));
+    for ($i = 0; $i < $total && count($filtros) < $max_filtros; $i++) {
+        $columna = isset($columnas[$i]) ? trim((string)$columnas[$i]) : '';
+        $operador = isset($operadores[$i]) ? trim((string)$operadores[$i]) : '';
+        $valor = isset($valores[$i]) ? trim((string)$valores[$i]) : '';
+        $desde = isset($desdes[$i]) ? trim((string)$desdes[$i]) : '';
+        $hasta = isset($hastas[$i]) ? trim((string)$hastas[$i]) : '';
+
+        if ($columna === '' || $operador === '') {
+            continue;
+        }
+
+        $filtro = ['columna' => $columna, 'operador' => $operador];
+
+        if ($operador === 'fecha') {
+            if ($desde === '' && $hasta === '') {
+                continue;
+            }
+
+            $filtro['operador'] = 'fecha_entre';
+            $filtro['valor'] = '';
+            $filtro['desde'] = $desde;
+            $filtro['hasta'] = $hasta;
+            $dedupeKey = 'fecha|' . $columna . '|' . $desde . '|' . $hasta;
+        } else {
+            if ($valor === '') {
+                continue;
+            }
+
+            $filtro['valor'] = $valor;
+            $dedupeKey = $operador . '|' . $columna . '|' . $valor;
+        }
+
+        if (isset($vistos[$dedupeKey])) {
+            continue;
+        }
+
+        $vistos[$dedupeKey] = true;
+        $filtros[] = $filtro;
+    }
+
+    return $filtros;
+}
+
+/**
  * Obtiene listado seguro de tablas disponibles
  */
 function get_tablas_disponibles() {
@@ -112,6 +175,31 @@ function get_tablas_disponibles() {
     $stmt->close();
     
     return $tablas;
+}
+
+/**
+ * Obtiene las columnas de una tabla concreta desde INFORMATION_SCHEMA.
+ */
+function get_columnas_tabla($tabla) {
+    global $conn;
+    $database = get_env('DB_NAME');
+
+    $stmt = $conn->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION");
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param("ss", $database, $tabla);
+    $stmt->execute();
+    $resultado = $stmt->get_result();
+
+    $columnas = [];
+    while ($fila = $resultado->fetch_assoc()) {
+        $columnas[] = $fila['COLUMN_NAME'];
+    }
+
+    $stmt->close();
+    return $columnas;
 }
 
 /**

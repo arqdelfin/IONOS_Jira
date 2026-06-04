@@ -27,12 +27,6 @@ if (!verify_csrf_token($csrf_token)) {
 $consulta_id = isset($_POST['consulta_id']) ? (int)$_POST['consulta_id'] : 0;
 $consulta_nombre = $_POST['consulta_nombre'] ?? 'consulta';
 
-$filtro_columna  = $_POST['filtro_columna'] ?? '';
-$filtro_operador = $_POST['filtro_operador'] ?? '';
-$filtro_valor    = $_POST['filtro_valor'] ?? '';
-$filtro_desde    = $_POST['filtro_desde'] ?? '';
-$filtro_hasta    = $_POST['filtro_hasta'] ?? '';
-
 if ($consulta_id <= 0) {
     app_audit_log('csv_export', 'fail', ['reason' => 'consulta_id_invalid']);
     app_respond_text_error('Consulta no valida', 400);
@@ -50,24 +44,7 @@ if (isset($parse['error'])) {
     app_respond_text_error('Consulta no permitida', 403);
 }
 
-$filtros = [];
-if ($filtro_columna !== '' && $filtro_operador !== '') {
-    if ($filtro_operador === 'fecha') {
-        $filtros[] = [
-            'columna' => $filtro_columna,
-            'operador' => 'fecha_entre',
-            'valor' => '',
-            'desde' => $filtro_desde,
-            'hasta' => $filtro_hasta
-        ];
-    } else {
-        $filtros[] = [
-            'columna' => $filtro_columna,
-            'operador' => $filtro_operador,
-            'valor' => $filtro_valor
-        ];
-    }
-}
+$filtros = normalizar_filtros_desde_post($_POST);
 
 $resultado = ejecutar_consulta_segura($parse['tabla'], $parse['columns'], $filtros);
 if (isset($resultado['error'])) {
