@@ -197,11 +197,22 @@ function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = []) {
                 break;
                 
             case 'fecha_entre':
-                if (isset($filtro['desde']) && isset($filtro['hasta'])) {
+                $desde = isset($filtro['desde']) ? trim((string)$filtro['desde']) : '';
+                $hasta = isset($filtro['hasta']) ? trim((string)$filtro['hasta']) : '';
+
+                if ($desde !== '' && $hasta !== '') {
                     $where_conditions[] = "`$columna` BETWEEN ? AND ?";
                     $types .= 'ss';
-                    $params[] = $filtro['desde'];
-                    $params[] = $filtro['hasta'];
+                    $params[] = $desde;
+                    $params[] = $hasta;
+                } elseif ($desde !== '') {
+                    $where_conditions[] = "`$columna` >= ?";
+                    $types .= 's';
+                    $params[] = $desde;
+                } elseif ($hasta !== '') {
+                    $where_conditions[] = "`$columna` <= ?";
+                    $types .= 's';
+                    $params[] = $hasta;
                 }
                 break;
         }
@@ -277,6 +288,12 @@ function ejecutar_consulta($query,
                 $valor_desde = $conn->real_escape_string($filtro_desde);
                 $valor_hasta = $conn->real_escape_string($filtro_hasta);
                 $query .= $prefijo . "`$filtro_columna` BETWEEN '$valor_desde' AND '$valor_hasta'";
+            } elseif ($filtro_desde) {
+                $valor_desde = $conn->real_escape_string($filtro_desde);
+                $query .= $prefijo . "`$filtro_columna` >= '$valor_desde'";
+            } elseif ($filtro_hasta) {
+                $valor_hasta = $conn->real_escape_string($filtro_hasta);
+                $query .= $prefijo . "`$filtro_columna` <= '$valor_hasta'";
             }
         } else {
             $valor = $conn->real_escape_string($filtro_valor);
