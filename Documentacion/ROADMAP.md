@@ -9,12 +9,45 @@ Documento que recoge el histórico de cambios, versiones y commits realizados en
 ### 🎯 Estado del Proyecto
 - **Versión**: 1.0.0
 - **Estado**: Activo y en mantenimiento
-- **Última actualización**: 3 de Junio de 2026
+- **Última actualización**: 4 de Junio de 2026
 - **Rama principal**: `main`
 
 ---
 
 ## 📜 Histórico de Cambios
+
+### v1.1.0 - UX de Consultas y Filtros (4 Junio 2026)
+
+#### Filtros avanzados y conectores lógicos
+- **Fecha**: 4 de Junio de 2026
+- **Cambios**:
+  - ✅ Filtros acumulativos con conectores `AND` / `OR` seleccionables por usuario
+  - ✅ Eliminación individual de filtros activos y limpieza total
+  - ✅ Soporte de filtros por fecha con rango y selección desde lista de valores
+  - ✅ Normalización de valores `DATETIME` a día en la UI de selección
+
+#### Robustez de ejecución y compatibilidad SQL
+- **Fecha**: 4 de Junio de 2026
+- **Cambios**:
+  - ✅ Correcciones de normalización para `fecha_entre` en backend
+  - ✅ Corrección de serialización de conectores en formularios dinámicos
+  - ✅ Mitigación de errores por collation en comparaciones de texto (`igual`, `contiene`, `empieza`)
+
+#### Paginación y control de volumen de datos
+- **Fecha**: 4 de Junio de 2026
+- **Cambios**:
+  - ✅ Opción de solicitar resultados sin límite (desactivando `LIMIT 1000` bajo demanda)
+  - ✅ Selector de registros por página configurable por usuario
+  - ✅ Indicador visual de estado de límite activo/sin límite
+
+#### Mejoras visuales de layout
+- **Fecha**: 4 de Junio de 2026
+- **Cambios**:
+  - ✅ Footer global con versión desde `.env` y fecha actual
+  - ✅ Reordenación compacta de botones de acciones para ganar espacio de tabla
+  - ✅ Ajustes dinámicos para evitar solapamiento entre footer, paginador y área de datos
+
+---
 
 ### v1.0.0 - Initial Release (3 Junio 2026)
 

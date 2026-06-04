@@ -1,5 +1,5 @@
 /* ============================================================
-   ESTILOS GLOBALES - WebDU versión 9 (filtrado contextual)
+   ESTILOS GLOBALES - WebDU versiï¿½n 9 (filtrado contextual)
    ============================================================ */
 
 :root {
@@ -21,6 +21,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  padding-bottom: 36px;
 }
 
 h2 {
@@ -57,7 +58,7 @@ h2 {
 .cab-der a:hover { text-decoration: underline; }
 
 /* ============================================================
-   BLOQUE DE INFORMACIÓN DE CONSULTA
+   BLOQUE DE INFORMACIï¿½N DE CONSULTA
    ============================================================ */
 .info-consulta {
   margin-top: 60px;
@@ -91,7 +92,7 @@ button:hover {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 0 20px 80px 20px; /* deja espacio para el pie fijo */
+  padding: 0 20px 120px 20px; /* espacio para pie de consulta + footer global */
 }
 
 /* Cabecera de la tabla */
@@ -150,14 +151,14 @@ tr:nth-child(even) { background: #f9f9f9; }
    ============================================================ */
 .pie-consulta {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
+  bottom: 36px; left: 0; right: 0;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
   background: var(--color-secundario);
   border-top: 1px solid #ccc;
   padding: 10px 20px;
-  z-index: 10;
+  z-index: 12;
 }
 .pie-consulta .izquierda { justify-self: start; }
 .pie-consulta .centro { justify-self: center; font-size: 0.9rem; }
@@ -190,7 +191,7 @@ tr:nth-child(even) { background: #f9f9f9; }
 }
 
 /* ============================================================
-   MENSAJES Y VACÍOS
+   MENSAJES Y VACï¿½OS
    ============================================================ */
 .mensaje-error {
   padding-left: 20px;
@@ -260,6 +261,34 @@ tr:nth-child(even) { background: #f9f9f9; }
 }
 
 /* ============================================================
+   FOOTER GLOBAL
+   ============================================================ */
+.app-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 36px;
+  background: #0d1f38;
+  color: #f8fbff;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  box-sizing: border-box;
+  font-size: 0.84rem;
+  z-index: 20;
+}
+
+.app-footer-left,
+.app-footer-right {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 768px) {
@@ -273,6 +302,24 @@ tr:nth-child(even) { background: #f9f9f9; }
     grid-template-columns: 1fr;
     row-gap: 8px;
     text-align: center;
+  }
+
+  .app-footer {
+    height: auto;
+    min-height: 44px;
+    padding: 6px 10px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    text-align: center;
+  }
+
+  body {
+    padding-bottom: 50px;
+  }
+
+  .pie-consulta {
+    bottom: 50px;
   }
 
   #paginador {

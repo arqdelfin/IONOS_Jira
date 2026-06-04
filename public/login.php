@@ -11,12 +11,23 @@ $csrf_token = generate_csrf_token();
 <title>Login DU</title>
 <link rel="stylesheet" href="estilos.css">
 <style>
+  body.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background: #f0f2f5;
+    padding: 16px;
+    box-sizing: border-box;
+  }
   .login-container {
     background: white;
     padding: 2rem;
     border-radius: 8px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     min-width: 320px;
+    width: min(700px, calc(100vw - 40px));
   }
   .mensaje-login {
     background: #fff4f4;
@@ -30,7 +41,7 @@ $csrf_token = generate_csrf_token();
   }
 </style>
 </head>
-<body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#f0f2f5;">
+<body class="login-page">
 
 <div class="login-container">
 
@@ -56,6 +67,8 @@ $csrf_token = generate_csrf_token();
   </form>
 
 </div>
+
+<?php include __DIR__ . '/../includes/footer.php'; ?>
 
 </body>
 </html>

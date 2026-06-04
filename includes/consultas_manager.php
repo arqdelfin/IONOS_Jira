@@ -98,12 +98,14 @@ function normalizar_filtros_desde_post($post, $max_filtros = 5) {
     $valores = $post['filtro_valor'] ?? [];
     $desdes = $post['filtro_desde'] ?? [];
     $hastas = $post['filtro_hasta'] ?? [];
+    $conectores = $post['filtro_conector'] ?? [];
 
     if (!is_array($columnas)) { $columnas = [$columnas]; }
     if (!is_array($operadores)) { $operadores = [$operadores]; }
     if (!is_array($valores)) { $valores = [$valores]; }
     if (!is_array($desdes)) { $desdes = [$desdes]; }
     if (!is_array($hastas)) { $hastas = [$hastas]; }
+    if (!is_array($conectores)) { $conectores = [$conectores]; }
 
     $filtros = [];
     $vistos = [];
@@ -115,14 +117,21 @@ function normalizar_filtros_desde_post($post, $max_filtros = 5) {
         $valor = isset($valores[$i]) ? trim((string)$valores[$i]) : '';
         $desde = isset($desdes[$i]) ? trim((string)$desdes[$i]) : '';
         $hasta = isset($hastas[$i]) ? trim((string)$hastas[$i]) : '';
+        $conector = isset($conectores[$i]) ? strtoupper(trim((string)$conectores[$i])) : 'AND';
+
+        if ($i === 0) {
+            $conector = 'AND';
+        } elseif (!in_array($conector, ['AND', 'OR'], true)) {
+            $conector = 'AND';
+        }
 
         if ($columna === '' || $operador === '') {
             continue;
         }
 
-        $filtro = ['columna' => $columna, 'operador' => $operador];
+        $filtro = ['columna' => $columna, 'operador' => $operador, 'conector' => $conector];
 
-        if ($operador === 'fecha') {
+        if ($operador === 'fecha' || $operador === 'fecha_entre') {
             if ($desde === '' && $hasta === '') {
                 continue;
             }
@@ -210,7 +219,7 @@ function get_columnas_tabla($tabla) {
  * @param array $columns - Columnas a retornar (['*'] o lista específica)
  * @param array $filtros - Filtros dinámicos
  */
-function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = []) {
+function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = [], $limite = 1000) {
     global $conn;
     
     // Validar tabla contra lista blanca
@@ -235,9 +244,7 @@ function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = []) {
     $query = "SELECT $select FROM `$tabla`";
     
     // Construir condiciones WHERE con prepared statement
-    $where_conditions = [];
-    $types = '';
-    $params = [];
+    $fragments = [];
     
     foreach ($filtros as $filtro) {
         if (!isset($filtro['columna']) || !isset($filtro['operador']) || !isset($filtro['valor'])) {
@@ -252,36 +259,44 @@ function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = []) {
         }
         
         $operador = strtolower($filtro['operador']);
+        $connector = strtoupper(trim((string)($filtro['conector'] ?? 'AND')));
+        if (!in_array($connector, ['AND', 'OR'], true)) {
+            $connector = 'AND';
+        }
+
+        $clause = null;
+        $clause_types = '';
+        $clause_params = [];
         
         switch ($operador) {
             case 'igual':
-                $where_conditions[] = "`$columna` = ?";
-                $types .= 's';
-                $params[] = $filtro['valor'];
+                $clause = "CONVERT(`$columna` USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci";
+                $clause_types = 's';
+                $clause_params[] = $filtro['valor'];
                 break;
                 
             case 'contiene':
-                $where_conditions[] = "`$columna` LIKE ?";
-                $types .= 's';
-                $params[] = '%' . $filtro['valor'] . '%';
+                $clause = "CONVERT(`$columna` USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci";
+                $clause_types = 's';
+                $clause_params[] = '%' . $filtro['valor'] . '%';
                 break;
                 
             case 'empieza':
-                $where_conditions[] = "`$columna` LIKE ?";
-                $types .= 's';
-                $params[] = $filtro['valor'] . '%';
+                $clause = "CONVERT(`$columna` USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci";
+                $clause_types = 's';
+                $clause_params[] = $filtro['valor'] . '%';
                 break;
                 
             case 'mayor':
-                $where_conditions[] = "`$columna` > ?";
-                $types .= 's';
-                $params[] = $filtro['valor'];
+                $clause = "`$columna` > ?";
+                $clause_types = 's';
+                $clause_params[] = $filtro['valor'];
                 break;
                 
             case 'menor':
-                $where_conditions[] = "`$columna` < ?";
-                $types .= 's';
-                $params[] = $filtro['valor'];
+                $clause = "`$columna` < ?";
+                $clause_types = 's';
+                $clause_params[] = $filtro['valor'];
                 break;
                 
             case 'fecha_entre':
@@ -291,52 +306,80 @@ function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = []) {
                 if ($desde !== '' && $hasta !== '') {
                     if ($desde === $hasta) {
                         // Si la columna es DATETIME, incluir todo el dia: [desde 00:00:00, siguiente dia)
-                        $where_conditions[] = "(`$columna` >= ? AND `$columna` < DATE_ADD(?, INTERVAL 1 DAY))";
-                        $types .= 'ss';
-                        $params[] = $desde;
-                        $params[] = $desde;
+                        $clause = "(`$columna` >= ? AND `$columna` < DATE_ADD(?, INTERVAL 1 DAY))";
+                        $clause_types = 'ss';
+                        $clause_params[] = $desde;
+                        $clause_params[] = $desde;
                     } else {
-                        $where_conditions[] = "`$columna` BETWEEN ? AND ?";
-                        $types .= 'ss';
-                        $params[] = $desde;
-                        $params[] = $hasta;
+                        $clause = "`$columna` BETWEEN ? AND ?";
+                        $clause_types = 'ss';
+                        $clause_params[] = $desde;
+                        $clause_params[] = $hasta;
                     }
                 } elseif ($desde !== '') {
-                    $where_conditions[] = "`$columna` >= ?";
-                    $types .= 's';
-                    $params[] = $desde;
+                    $clause = "`$columna` >= ?";
+                    $clause_types = 's';
+                    $clause_params[] = $desde;
                 } elseif ($hasta !== '') {
-                    $where_conditions[] = "`$columna` <= ?";
-                    $types .= 's';
-                    $params[] = $hasta;
+                    $clause = "`$columna` <= ?";
+                    $clause_types = 's';
+                    $clause_params[] = $hasta;
                 }
                 break;
         }
+
+        if ($clause !== null) {
+            $fragments[] = [
+                'connector' => $connector,
+                'types' => $clause_types,
+                'params' => $clause_params,
+                'sql' => $clause,
+            ];
+        }
     }
     
-    // Agregar condiciones WHERE si existen
-    if (!empty($where_conditions)) {
-        $query .= ' WHERE ' . implode(' AND ', $where_conditions);
+    $types = '';
+    $params = [];
+    if (!empty($fragments)) {
+        $where_sql = '';
+
+        foreach ($fragments as $indice => $fragment) {
+            if ($indice === 0) {
+                $where_sql .= $fragment['sql'];
+            } else {
+                $where_sql = '(' . $where_sql . ' ' . $fragment['connector'] . ' ' . $fragment['sql'] . ')';
+            }
+
+            $types .= $fragment['types'];
+            foreach ($fragment['params'] as $param) {
+                $params[] = $param;
+            }
+        }
+
+        $query .= ' WHERE ' . $where_sql;
     }
-    
-    // Agregar LIMIT para prevenir sobrecarga
-    $query .= ' LIMIT 1000';
-    
+
+    // Agregar LIMIT para prevenir sobrecarga (por defecto 1000, opcionalmente sin limite)
+    $limite_num = is_numeric($limite) ? (int)$limite : 1000;
+    if ($limite_num > 0) {
+        $query .= ' LIMIT ' . $limite_num;
+    }
+
     // Ejecutar con prepared statement
     $stmt = $conn->prepare($query);
     if (!$stmt) {
         error_log("Error en prepared statement: " . $conn->error);
         return ['error' => 'Error en la consulta. Contacta al administrador.'];
     }
-    
+
     // Bind parameters si existen
     if (!empty($params)) {
         bind_params_stmt($stmt, $types, $params);
     }
-    
+
     $stmt->execute();
     $resultado = $stmt->get_result();
-    
+
     if (!$resultado) {
         error_log("Error en get_result: " . $conn->error);
         return ['error' => 'Error en la consulta'];
@@ -352,6 +395,155 @@ function ejecutar_consulta_segura($tabla, $columns = ['*'], $filtros = []) {
     return [
         'datos' => $datos,
         'total_registros' => count($datos)
+    ];
+}
+
+/**
+ * Cuenta registros de una tabla permitida aplicando los mismos filtros seguros.
+ */
+function contar_consulta_segura($tabla, $filtros = []) {
+    global $conn;
+
+    $tablas_permitidas = get_tablas_disponibles();
+    if (!in_array($tabla, $tablas_permitidas, true)) {
+        return ['error' => 'Tabla no permitida'];
+    }
+
+    $query = "SELECT COUNT(*) AS total FROM `$tabla`";
+    $fragments = [];
+
+    foreach ($filtros as $filtro) {
+        if (!isset($filtro['columna']) || !isset($filtro['operador']) || !isset($filtro['valor'])) {
+            continue;
+        }
+
+        $columna = $filtro['columna'];
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $columna)) {
+            continue;
+        }
+
+        $operador = strtolower($filtro['operador']);
+        $connector = strtoupper(trim((string)($filtro['conector'] ?? 'AND')));
+        if (!in_array($connector, ['AND', 'OR'], true)) {
+            $connector = 'AND';
+        }
+
+        $clause = null;
+        $clause_types = '';
+        $clause_params = [];
+
+        switch ($operador) {
+            case 'igual':
+                $clause = "CONVERT(`$columna` USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci";
+                $clause_types = 's';
+                $clause_params[] = $filtro['valor'];
+                break;
+
+            case 'contiene':
+                $clause = "CONVERT(`$columna` USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci";
+                $clause_types = 's';
+                $clause_params[] = '%' . $filtro['valor'] . '%';
+                break;
+
+            case 'empieza':
+                $clause = "CONVERT(`$columna` USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci";
+                $clause_types = 's';
+                $clause_params[] = $filtro['valor'] . '%';
+                break;
+
+            case 'mayor':
+                $clause = "`$columna` > ?";
+                $clause_types = 's';
+                $clause_params[] = $filtro['valor'];
+                break;
+
+            case 'menor':
+                $clause = "`$columna` < ?";
+                $clause_types = 's';
+                $clause_params[] = $filtro['valor'];
+                break;
+
+            case 'fecha_entre':
+                $desde = isset($filtro['desde']) ? trim((string)$filtro['desde']) : '';
+                $hasta = isset($filtro['hasta']) ? trim((string)$filtro['hasta']) : '';
+
+                if ($desde !== '' && $hasta !== '') {
+                    if ($desde === $hasta) {
+                        $clause = "(`$columna` >= ? AND `$columna` < DATE_ADD(?, INTERVAL 1 DAY))";
+                        $clause_types = 'ss';
+                        $clause_params[] = $desde;
+                        $clause_params[] = $desde;
+                    } else {
+                        $clause = "`$columna` BETWEEN ? AND ?";
+                        $clause_types = 'ss';
+                        $clause_params[] = $desde;
+                        $clause_params[] = $hasta;
+                    }
+                } elseif ($desde !== '') {
+                    $clause = "`$columna` >= ?";
+                    $clause_types = 's';
+                    $clause_params[] = $desde;
+                } elseif ($hasta !== '') {
+                    $clause = "`$columna` <= ?";
+                    $clause_types = 's';
+                    $clause_params[] = $hasta;
+                }
+                break;
+        }
+
+        if ($clause !== null) {
+            $fragments[] = [
+                'connector' => $connector,
+                'types' => $clause_types,
+                'params' => $clause_params,
+                'sql' => $clause,
+            ];
+        }
+    }
+
+    $types = '';
+    $params = [];
+    if (!empty($fragments)) {
+        $where_sql = '';
+
+        foreach ($fragments as $indice => $fragment) {
+            if ($indice === 0) {
+                $where_sql .= $fragment['sql'];
+            } else {
+                $where_sql = '(' . $where_sql . ' ' . $fragment['connector'] . ' ' . $fragment['sql'] . ')';
+            }
+
+            $types .= $fragment['types'];
+            foreach ($fragment['params'] as $param) {
+                $params[] = $param;
+            }
+        }
+
+        $query .= ' WHERE ' . $where_sql;
+    }
+
+    $stmt = $conn->prepare($query);
+    if (!$stmt) {
+        error_log("Error en prepared statement de conteo: " . $conn->error);
+        return ['error' => 'Error en la consulta. Contacta al administrador.'];
+    }
+
+    if (!empty($params)) {
+        bind_params_stmt($stmt, $types, $params);
+    }
+
+    $stmt->execute();
+    $resultado = $stmt->get_result();
+    if (!$resultado) {
+        error_log("Error en get_result de conteo: " . $conn->error);
+        return ['error' => 'Error en la consulta'];
+    }
+
+    $fila = $resultado->fetch_assoc();
+    $stmt->close();
+
+    return [
+        'total_registros' => isset($fila['total']) ? (int)$fila['total'] : 0
     ];
 }
 

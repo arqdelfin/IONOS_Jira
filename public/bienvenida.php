@@ -63,5 +63,7 @@ $csrf_token = generate_csrf_token();
   syncConsultaNombre();
 </script>
 
+<?php include __DIR__ . '/../includes/footer.php'; ?>
+
 </body>
 </html>
