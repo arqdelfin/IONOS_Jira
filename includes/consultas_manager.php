@@ -47,7 +47,9 @@ function parse_query_select_segura($query) {
         return ['error' => 'Consulta no permitida'];
     }
 
-    if (!preg_match('/^SELECT\s+(.+)\s+FROM\s+`?([a-zA-Z0-9_]+)`?$/i', $query, $matches)) {
+    // Permite SELECT con clausulas seguras posteriores (WHERE, ORDER BY, LIMIT, etc.)
+    // y captura al menos la tabla principal despues de FROM.
+    if (!preg_match('/^SELECT\s+(.+?)\s+FROM\s+`?([a-zA-Z0-9_]+)`?(?:\s+.*)?$/i', $query, $matches)) {
         return ['error' => 'Formato de consulta no permitido'];
     }
 
