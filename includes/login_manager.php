@@ -48,7 +48,12 @@ function migrar_password_usuario($usuario, $plainPassword) {
     global $conn;
 
     $nuevoHash = password_hash($plainPassword, PASSWORD_DEFAULT);
-    $stmt = $conn->prepare("UPDATE t_usuarios SET password_hash = ? WHERE usuario = ?");
+    try {
+        $stmt = $conn->prepare("UPDATE t_usuarios SET password_hash = ? WHERE usuario = ?");
+    } catch (Throwable $exception) {
+        app_error_log('No se pudo preparar la migracion de password', ['usuario' => $usuario]);
+        return false;
+    }
     if (!$stmt) {
         app_error_log('No se pudo preparar la migracion de password', ['usuario' => $usuario]);
         return false;
@@ -86,7 +91,13 @@ function verificar_login($usuario, $password) {
     }
 
     // Usar prepared statement
-    $stmt = $conn->prepare("SELECT usuario, nombre, apellidos, password_hash FROM t_usuarios WHERE usuario = ?");
+    try {
+        $stmt = $conn->prepare("SELECT usuario, nombre, apellidos, password_hash FROM t_usuarios WHERE usuario = ?");
+    } catch (Throwable $exception) {
+        error_log('Error en prepared statement: ' . $exception->getMessage());
+        app_audit_log('login', 'error', ['reason' => 'db_prepare_error']);
+        return ['status' => false, 'mensaje' => 'Error en el sistema. Contacta al administrador.'];
+    }
     if (!$stmt) {
         error_log("Error en prepared statement: " . $conn->error);
         app_audit_log('login', 'error', ['reason' => 'db_prepare_error']);

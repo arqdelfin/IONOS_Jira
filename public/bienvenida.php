@@ -1,7 +1,8 @@
 <?php
-session_start();
 require_once __DIR__ . '/../includes/login_manager.php';
 require_once __DIR__ . '/../includes/security.php';
+
+start_secure_session();
 
 // Validar sesión
 if (!validar_sesion()) { 

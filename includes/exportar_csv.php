@@ -1,10 +1,27 @@
 <?php
-session_start();
-require_once __DIR__ . '/../config/conexion.php';
 require_once __DIR__ . '/login_manager.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/consultas_manager.php';
 require_once __DIR__ . '/app_runtime.php';
+
+start_secure_session();
+
+/**
+ * Makes a cell safe when the CSV is opened in spreadsheet software.
+ *
+ * Excel and similar tools can interpret values beginning with a formula prefix
+ * as executable formulas. Prefixing the complete value with an apostrophe
+ * preserves its visible content while forcing text interpretation.
+ */
+function csv_safe_cell($value) {
+    $value = $value === null ? '' : (string)$value;
+
+    if (preg_match('/^\s*[=+\-@]/u', $value)) {
+        return "'" . $value;
+    }
+
+    return $value;
+}
 
 // Validar sesión y CSRF
 if (!validar_sesion()) {
@@ -38,15 +55,28 @@ if (!$consulta_data) {
     app_respond_text_error('Consulta no encontrada', 404);
 }
 
-$parse = parse_query_select_segura($consulta_data['query'] ?? '');
-if (isset($parse['error'])) {
+$validacion_query = validar_consulta_predefinida($consulta_data['query'] ?? '');
+if (isset($validacion_query['error'])) {
     app_audit_log('csv_export', 'fail', ['reason' => 'query_policy_denied', 'consulta_id' => $consulta_id]);
     app_respond_text_error('Consulta no permitida', 403);
 }
 
+$metadata_query = get_columnas_consulta_predefinida($validacion_query['query']);
+if (isset($metadata_query['error'])) {
+    app_audit_log('csv_export', 'fail', ['reason' => 'query_metadata_error', 'consulta_id' => $consulta_id]);
+    app_respond_text_error('Error en la consulta', 500);
+}
+
 $filtros = normalizar_filtros_desde_post($_POST);
 
-$resultado = ejecutar_consulta_segura($parse['tabla'], $parse['columns'], $filtros);
+$sin_limite = isset($_POST['sin_limite']) && (string)$_POST['sin_limite'] === '1';
+if ($sin_limite && (!isset($_POST['confirmar_exportacion_sin_limite']) || (string)$_POST['confirmar_exportacion_sin_limite'] !== '1')) {
+    app_audit_log('csv_export', 'fail', ['reason' => 'unlimited_export_not_confirmed', 'consulta_id' => $consulta_id]);
+    app_respond_text_error('Confirma la exportación completa antes de continuar', 400);
+}
+$limite_consulta = $sin_limite ? 0 : 1000;
+
+$resultado = ejecutar_consulta_predefinida($validacion_query['query'], $filtros, $limite_consulta, $metadata_query['columnas']);
 if (isset($resultado['error'])) {
     app_audit_log('csv_export', 'fail', ['reason' => 'query_execution_error', 'consulta_id' => $consulta_id]);
     app_respond_text_error('Error en la consulta', 500);
@@ -54,7 +84,6 @@ if (isset($resultado['error'])) {
 
 app_audit_log('csv_export', 'ok', [
     'consulta_id' => $consulta_id,
-    'tabla' => $parse['tabla'],
     'total' => isset($resultado['total_registros']) ? (int)$resultado['total_registros'] : 0
 ]);
 
@@ -70,10 +99,10 @@ fprintf($salida, chr(0xEF).chr(0xBB).chr(0xBF));
 $primera = true;
 foreach ($resultado['datos'] as $fila) {
     if ($primera) {
-        fputcsv($salida, array_keys($fila), ';');
+        fputcsv($salida, array_map('csv_safe_cell', array_keys($fila)), ';');
         $primera = false;
     }
-    fputcsv($salida, $fila, ';');
+    fputcsv($salida, array_map('csv_safe_cell', $fila), ';');
 }
 fclose($salida);
 exit;

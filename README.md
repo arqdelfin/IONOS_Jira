@@ -102,9 +102,10 @@ VALUES ('admin', 'Admin', 'User', '$2y$10$...');
 
 ### Ejecutar Consultas
 
-1. Las consultas están predefinidas en `t_consultasweb`
-2. El sistema aplicará filtros dinámicos si se proporcionan
-3. Los resultados se pueden exportar a CSV
+1. Las consultas están predefinidas en `t_consultasweb` y se ejecutan completas, incluidas sus condiciones, orden y límites. La composición vuelve a aplicar un `ORDER BY` superior por alias de salida u ordinal sobre el resultado derivado; expresiones de orden que no puedan referirse a aliases publicados u ordinales válidos se rechazan con un error accionable, para no perder el orden almacenado.
+2. No existe SQL aportado por usuarios: solo administradores autorizados pueden definir estas consultas. El sistema restringe la definición a un único `SELECT` y rechaza comentarios, múltiples sentencias y construcciones de archivos, bloqueo, estado, espera o variables. Esta política reduce superficie, pero no sustituye una cuenta de BD de mínimo privilegio y permisos exclusivamente de lectura.
+3. El sistema aplicará filtros dinámicos parameterizados sobre el resultado de la consulta predefinida; nunca reemplazan sus cláusulas. Todos los aliases pueden mostrarse; un filtro concreto solo puede usar un alias único alfanumérico o con guion bajo.
+4. Los resultados se pueden exportar a CSV con la misma consulta base, filtros activos y límite seleccionado en la vista. La exportación sin límite requiere confirmación explícita.
 
 ### Cerrar Sesión
 
@@ -173,7 +174,9 @@ csrf_token=token
 
 ### Logout
 ```
-GET/POST /datoswebDU.php?accion=logout
+POST /datoswebDU.php
+accion=logout
+csrf_token=token
 ```
 
 ### Ejecutar Consulta

@@ -1,9 +1,10 @@
 <?php
-session_start();
 require_once __DIR__ . '/../includes/login_manager.php';
 require_once __DIR__ . '/../includes/consultas_manager.php';
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../includes/app_runtime.php';
+
+start_secure_session();
 
 // Validar sesión
 if (!validar_sesion()) { 
@@ -32,16 +33,22 @@ if (!$consulta_data) {
 
 $consulta_nombre  = $consulta_data['consulta'] ?? 'consulta';
 
-$parse = parse_query_select_segura($consulta_data['query'] ?? '');
-if (isset($parse['error'])) {
+$query_predefinida = $consulta_data['query'] ?? '';
+$validacion_query = validar_consulta_predefinida($query_predefinida);
+if (isset($validacion_query['error'])) {
   app_audit_log('consulta_web', 'fail', ['reason' => 'query_policy_denied', 'consulta_id' => $consulta_id]);
   app_respond_text_error('Consulta predefinida no permitida', 403);
 }
 
+$metadata_query = get_columnas_consulta_predefinida($validacion_query['query']);
+if (isset($metadata_query['error'])) {
+  app_audit_log('consulta_web', 'fail', ['reason' => 'query_metadata_error', 'consulta_id' => $consulta_id]);
+  app_respond_text_error('Error en la consulta predefinida', 500);
+}
+
 $filtros_activos = normalizar_filtros_desde_post($_POST);
-$columnas_disponibles = !empty($parse['columns']) && $parse['columns'] !== ['*']
-  ? $parse['columns']
-  : get_columnas_tabla($parse['tabla']);
+$columnas_disponibles = $metadata_query['columnas'];
+$columnas_filtrables = get_columnas_filtrables_consulta_predefinida($columnas_disponibles);
 
 $sin_limite = isset($_POST['sin_limite']) && (string)$_POST['sin_limite'] === '1';
 $limite_consulta = $sin_limite ? 0 : 1000;
@@ -50,12 +57,14 @@ $registros_por_pagina = isset($_POST['registros_por_pagina']) ? (int)$_POST['reg
 if ($registros_por_pagina < 10) { $registros_por_pagina = 10; }
 if ($registros_por_pagina > 500) { $registros_por_pagina = 500; }
 
-$resultado = ejecutar_consulta_segura($parse['tabla'], $parse['columns'], $filtros_activos, $limite_consulta);
-$resultado_total = contar_consulta_segura($parse['tabla']);
+$resultado = ejecutar_consulta_predefinida($validacion_query['query'], $filtros_activos, $limite_consulta, $columnas_disponibles);
+$resultado_total = contar_consulta_predefinida($validacion_query['query'], $filtros_activos, $columnas_disponibles);
+if (isset($resultado_total['error'])) {
+  app_audit_log('consulta_web', 'fail', ['consulta_id' => $consulta_id, 'reason' => 'query_count_error']);
+}
 if (!isset($resultado['error'])) {
   app_audit_log('consulta_web', 'ok', [
     'consulta_id' => $consulta_id,
-    'tabla' => $parse['tabla'],
     'total' => isset($resultado['total_registros']) ? (int)$resultado['total_registros'] : 0
   ]);
 } else {
@@ -64,7 +73,8 @@ if (!isset($resultado['error'])) {
 
 $fecha     = date('d/m/Y H:i:s');
 $registros = isset($resultado['total_registros']) ? $resultado['total_registros'] : 0;
-$registros_totales = isset($resultado_total['total_registros']) ? $resultado_total['total_registros'] : $registros;
+$total_disponible = !isset($resultado_total['error']) && isset($resultado_total['total_registros']);
+$registros_totales = $total_disponible ? $resultado_total['total_registros'] : null;
 $csrf_token = generate_csrf_token();
 ?>
 <!DOCTYPE html>
@@ -225,12 +235,15 @@ $csrf_token = generate_csrf_token();
 <?php include __DIR__ . '/../includes/header.php'; ?>
 
 <div class="info-consulta">
-  Consulta ejecutada el <?php echo $fecha; ?> · <?php echo $registros_totales; ?> registros totales.
-  <?php if (!empty($filtros_activos)): ?>
-    · <?php echo $registros; ?> cumplen los filtros activos.
+  Consulta ejecutada el <?php echo $fecha; ?>
+  <?php if ($total_disponible && !empty($filtros_activos)): ?>
+    · <?php echo $registros_totales; ?> registros cumplen los filtros activos.
+  <?php elseif ($total_disponible): ?>
+    · <?php echo $registros_totales; ?> registros totales.
   <?php else: ?>
-    · <?php echo $registros; ?> registros devueltos.
+    · Total de registros no disponible.
   <?php endif; ?>
+  · <?php echo $registros; ?> registros devueltos.
   <?php if (!$sin_limite): ?>
     · Límite activo: 1000.
   <?php else: ?>
@@ -370,9 +383,13 @@ $csrf_token = generate_csrf_token();
   <div class="pie-consulta">
     <div class="izquierda">
       <div class="acciones-pie-inline">
-        <form method="POST" action="../includes/exportar_csv.php">
+        <form method="POST" action="../includes/exportar_csv.php"<?php if ($sin_limite): ?> onsubmit="if (!confirm('Vas a exportar todos los registros. ¿Deseas continuar?')) { return false; } this.querySelector('[name=confirmar_exportacion_sin_limite]').value = '1';"<?php endif; ?>>
           <input type="hidden" name="consulta_id" value="<?php echo (int)$consulta_id; ?>">
           <input type="hidden" name="consulta_nombre" value="<?php echo htmlspecialchars($consulta_nombre); ?>">
+          <input type="hidden" name="sin_limite" value="<?php echo $sin_limite ? '1' : '0'; ?>">
+          <?php if ($sin_limite): ?>
+            <input type="hidden" name="confirmar_exportacion_sin_limite" value="">
+          <?php endif; ?>
           <?php foreach ($filtros_activos as $filtro): ?>
             <input type="hidden" name="filtro_columna[]" value="<?php echo htmlspecialchars($filtro['columna']); ?>">
             <input type="hidden" name="filtro_operador[]" value="<?php echo htmlspecialchars($filtro['operador']); ?>">
@@ -382,7 +399,7 @@ $csrf_token = generate_csrf_token();
             <input type="hidden" name="filtro_conector[]" value="<?php echo htmlspecialchars($filtro['conector'] ?? 'AND'); ?>">
           <?php endforeach; ?>
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-          <button type="submit">Exportar CSV</button>
+          <button type="submit">Exportar CSV <?php echo $sin_limite ? '(todos los registros)' : '(máx. 1000)'; ?></button>
         </form>
 
         <form method="POST" action="consultas.php">
@@ -414,7 +431,7 @@ $csrf_token = generate_csrf_token();
   <!-- Scripts -->
   <script>
     const filtrosActivos = <?php echo json_encode(array_values($filtros_activos), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
-    const columnasDisponibles = <?php echo json_encode(array_values($columnas_disponibles), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+    const columnasDisponibles = <?php echo json_encode(array_values($columnas_filtrables), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
     const maxFiltros = 5;
     let pageSize = <?php echo (int)$registros_por_pagina; ?>;
 

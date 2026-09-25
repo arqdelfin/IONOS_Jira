@@ -44,6 +44,17 @@ switch ($accion) {
         break;
 
     case 'logout':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            app_audit_log('logout', 'fail', ['reason' => 'invalid_method']);
+            app_respond_text_error('Método no permitido', 405);
+        }
+
+        $csrf_token = $_POST['csrf_token'] ?? '';
+        if (!verify_csrf_token($csrf_token)) {
+            app_audit_log('logout', 'fail', ['reason' => 'csrf_invalid']);
+            app_respond_text_error('Error de seguridad', 403);
+        }
+
         cerrar_sesion();
         header('Location: ./public/login.php');
         exit;

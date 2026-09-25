@@ -47,15 +47,23 @@ h2 {
   z-index: 10;
 }
 .cab-izq { font-weight: bold; }
-.cab-der a {
+.cab-der .logout-form {
+  display: inline;
+  margin: 0;
+}
+.cab-der .btn-logout {
   color: white;
-  text-decoration: none;
   margin-left: 15px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
 }
-.cab-der a:hover { text-decoration: underline; }
+.cab-der .btn-logout:hover { text-decoration: underline; }
 
 /* ============================================================
    BLOQUE DE INFORMACI�N DE CONSULTA

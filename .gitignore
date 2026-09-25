@@ -5,6 +5,8 @@
 private/.env
 private/.env.local
 private/.env.*.local
+private/.env.*
+!private/.env.example
 .DS_Store
 .vscode/
 *.log
