@@ -434,6 +434,56 @@ function get_columnas_filtrables_consulta_predefinida($columnas) {
 }
 
 /**
+ * Normaliza una ordenación solicitada por el usuario contra los aliases
+ * publicados por la consulta predefinida. Los identificadores no se aceptan
+ * directamente desde POST: siempre se recuperan de los metadatos validados.
+ */
+function normalizar_orden_usuario_consulta_predefinida($columna, $direccion, $columnas_permitidas) {
+    if (!is_string($columna) || !is_string($direccion)) {
+        return ['error' => 'Orden no permitida'];
+    }
+
+    $columna = trim($columna);
+    $direccion = strtoupper(trim($direccion));
+    if ($columna === '' && $direccion === '') {
+        return ['orden' => null];
+    }
+    if ($columna === '' || !in_array($direccion, ['ASC', 'DESC'], true)) {
+        return ['error' => 'Orden no permitida'];
+    }
+
+    $coincidencias = [];
+    foreach ((array)$columnas_permitidas as $columna_permitida) {
+        if (strcasecmp($columna, (string)$columna_permitida) === 0) {
+            $coincidencias[] = (string)$columna_permitida;
+        }
+    }
+    if (count($coincidencias) !== 1) {
+        return ['error' => 'La columna de ordenación no está disponible'];
+    }
+
+    return ['orden' => ['columna' => $coincidencias[0], 'direccion' => $direccion]];
+}
+
+/**
+ * Construye el ORDER BY de usuario a partir de un alias ya validado.
+ */
+function construir_orden_usuario_consulta_predefinida($orden_usuario) {
+    if (empty($orden_usuario)) {
+        return ['sql' => ''];
+    }
+
+    $columna = $orden_usuario['columna'] ?? '';
+    $direccion = $orden_usuario['direccion'] ?? '';
+    if (!is_string($columna) || !is_string($direccion)
+        || $columna === '' || !in_array($direccion, ['ASC', 'DESC'], true)) {
+        return ['error' => 'Orden no permitida'];
+    }
+
+    return ['sql' => ' ORDER BY `' . str_replace('`', '``', $columna) . '` ' . $direccion];
+}
+
+/**
  * Construye filtros parameterizados sobre el resultado de una consulta base.
  */
 function construir_filtros_consulta_predefinida($filtros, $columnas_permitidas) {
@@ -549,7 +599,7 @@ function construir_filtros_consulta_predefinida($filtros, $columnas_permitidas) 
 /**
  * Ejecuta una consulta predefinida completa y filtra solo su resultado.
  */
-function ejecutar_consulta_predefinida($query, $filtros = [], $limite = 1000, $columnas_permitidas = []) {
+function ejecutar_consulta_predefinida($query, $filtros = [], $limite = 1000, $columnas_permitidas = [], $orden_usuario = null) {
     global $conn;
 
     $validacion = validar_consulta_predefinida($query);
@@ -573,12 +623,18 @@ function ejecutar_consulta_predefinida($query, $filtros = [], $limite = 1000, $c
     if (isset($orden_sql['error'])) {
         return $orden_sql;
     }
+    $orden_usuario_sql = construir_orden_usuario_consulta_predefinida($orden_usuario);
+    if (isset($orden_usuario_sql['error'])) {
+        return $orden_usuario_sql;
+    }
     $sql = 'SELECT * FROM (' . $validacion['query'] . ') AS consulta_base';
     if ($filtros_sql['where'] !== '') {
         $sql .= ' WHERE ' . $filtros_sql['where'];
     }
 
-    $sql .= $orden_sql['sql'];
+    // La orden solicitada por el usuario prevalece sobre el orden por defecto
+    // almacenado, pero ambas se aplican después de los filtros y antes del límite.
+    $sql .= $orden_usuario_sql['sql'] !== '' ? $orden_usuario_sql['sql'] : $orden_sql['sql'];
 
     $limite_num = is_numeric($limite) ? (int)$limite : 1000;
     if ($limite_num > 0) {

@@ -49,6 +49,16 @@ if (isset($metadata_query['error'])) {
 $filtros_activos = normalizar_filtros_desde_post($_POST);
 $columnas_disponibles = $metadata_query['columnas'];
 $columnas_filtrables = get_columnas_filtrables_consulta_predefinida($columnas_disponibles);
+$orden_normalizada = normalizar_orden_usuario_consulta_predefinida(
+  $_POST['orden_columna'] ?? '',
+  $_POST['orden_direccion'] ?? '',
+  $columnas_disponibles
+);
+if (isset($orden_normalizada['error'])) {
+  app_audit_log('consulta_web', 'fail', ['reason' => 'sort_invalid', 'consulta_id' => $consulta_id]);
+  app_respond_text_error('Orden no valida', 400);
+}
+$orden_activo = $orden_normalizada['orden'];
 
 $sin_limite = isset($_POST['sin_limite']) && (string)$_POST['sin_limite'] === '1';
 $limite_consulta = $sin_limite ? 0 : 1000;
@@ -57,7 +67,7 @@ $registros_por_pagina = isset($_POST['registros_por_pagina']) ? (int)$_POST['reg
 if ($registros_por_pagina < 10) { $registros_por_pagina = 10; }
 if ($registros_por_pagina > 500) { $registros_por_pagina = 500; }
 
-$resultado = ejecutar_consulta_predefinida($validacion_query['query'], $filtros_activos, $limite_consulta, $columnas_disponibles);
+$resultado = ejecutar_consulta_predefinida($validacion_query['query'], $filtros_activos, $limite_consulta, $columnas_disponibles, $orden_activo);
 $resultado_total = contar_consulta_predefinida($validacion_query['query'], $filtros_activos, $columnas_disponibles);
 if (isset($resultado_total['error'])) {
   app_audit_log('consulta_web', 'fail', ['consulta_id' => $consulta_id, 'reason' => 'query_count_error']);
@@ -210,6 +220,38 @@ $csrf_token = generate_csrf_token();
   .bloque-tabla {
     padding-bottom: 140px !important;
   }
+  .cabecera-columna {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .cabecera-columna-nombre {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .controles-orden {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: auto;
+  }
+  .btn-ordenar {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 2px 4px;
+    border: 1px solid rgba(255,255,255,.7);
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .btn-ordenar:hover,
+  .btn-ordenar:focus-visible,
+  .btn-ordenar.is-active {
+    background: rgba(255,255,255,.22);
+    outline: none;
+  }
   @media (max-width: 768px) {
     .filtros-layout {
       grid-template-columns: 1fr;
@@ -310,6 +352,16 @@ $csrf_token = generate_csrf_token();
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
     <input type="hidden" name="sin_limite" value="<?php echo $sin_limite ? '1' : '0'; ?>">
     <input type="hidden" name="registros_por_pagina" value="<?php echo (int)$registros_por_pagina; ?>">
+    <input type="hidden" name="orden_columna" value="<?php echo htmlspecialchars($orden_activo['columna'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
+    <input type="hidden" name="orden_direccion" value="<?php echo htmlspecialchars($orden_activo['direccion'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
+    <?php foreach ($filtros_activos as $filtro): ?>
+      <input type="hidden" data-dynamic-filter="1" name="filtro_columna[]" value="<?php echo htmlspecialchars($filtro['columna']); ?>">
+      <input type="hidden" data-dynamic-filter="1" name="filtro_operador[]" value="<?php echo htmlspecialchars($filtro['operador']); ?>">
+      <input type="hidden" data-dynamic-filter="1" name="filtro_valor[]" value="<?php echo htmlspecialchars($filtro['valor'] ?? ''); ?>">
+      <input type="hidden" data-dynamic-filter="1" name="filtro_desde[]" value="<?php echo htmlspecialchars($filtro['desde'] ?? ''); ?>">
+      <input type="hidden" data-dynamic-filter="1" name="filtro_hasta[]" value="<?php echo htmlspecialchars($filtro['hasta'] ?? ''); ?>">
+      <input type="hidden" data-dynamic-filter="1" name="filtro_conector[]" value="<?php echo htmlspecialchars($filtro['conector'] ?? 'AND'); ?>">
+    <?php endforeach; ?>
   </form>
 
   <div class="bloque-tabla">
@@ -332,7 +384,13 @@ $csrf_token = generate_csrf_token();
             <tr>
               <?php foreach (array_keys($resultado['datos'][0]) as $col): ?>
                 <th data-columna="<?php echo htmlspecialchars($col); ?>">
-                  <?php echo htmlspecialchars($col); ?>
+                  <span class="cabecera-columna">
+                    <span class="cabecera-columna-nombre"><?php echo htmlspecialchars($col); ?></span>
+                    <span class="controles-orden" aria-label="Ordenar por <?php echo htmlspecialchars($col, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
+                      <button type="button" class="btn-ordenar<?php echo (($orden_activo['columna'] ?? '') === $col && ($orden_activo['direccion'] ?? '') === 'ASC') ? ' is-active' : ''; ?>" data-orden-columna="<?php echo htmlspecialchars($col, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>" data-orden-direccion="ASC" aria-label="Ordenar <?php echo htmlspecialchars($col, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?> de forma ascendente" aria-pressed="<?php echo (($orden_activo['columna'] ?? '') === $col && ($orden_activo['direccion'] ?? '') === 'ASC') ? 'true' : 'false'; ?>" title="Orden ascendente">▲</button>
+                      <button type="button" class="btn-ordenar<?php echo (($orden_activo['columna'] ?? '') === $col && ($orden_activo['direccion'] ?? '') === 'DESC') ? ' is-active' : ''; ?>" data-orden-columna="<?php echo htmlspecialchars($col, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>" data-orden-direccion="DESC" aria-label="Ordenar <?php echo htmlspecialchars($col, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?> de forma descendente" aria-pressed="<?php echo (($orden_activo['columna'] ?? '') === $col && ($orden_activo['direccion'] ?? '') === 'DESC') ? 'true' : 'false'; ?>" title="Orden descendente">▼</button>
+                    </span>
+                  </span>
                 </th>
               <?php endforeach; ?>
             </tr>
@@ -387,6 +445,8 @@ $csrf_token = generate_csrf_token();
           <input type="hidden" name="consulta_id" value="<?php echo (int)$consulta_id; ?>">
           <input type="hidden" name="consulta_nombre" value="<?php echo htmlspecialchars($consulta_nombre); ?>">
           <input type="hidden" name="sin_limite" value="<?php echo $sin_limite ? '1' : '0'; ?>">
+          <input type="hidden" name="orden_columna" value="<?php echo htmlspecialchars($orden_activo['columna'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
+          <input type="hidden" name="orden_direccion" value="<?php echo htmlspecialchars($orden_activo['direccion'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
           <?php if ($sin_limite): ?>
             <input type="hidden" name="confirmar_exportacion_sin_limite" value="">
           <?php endif; ?>
@@ -408,6 +468,8 @@ $csrf_token = generate_csrf_token();
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
           <input type="hidden" name="sin_limite" value="<?php echo $sin_limite ? '0' : '1'; ?>">
           <input type="hidden" name="registros_por_pagina" value="<?php echo (int)$registros_por_pagina; ?>">
+          <input type="hidden" name="orden_columna" value="<?php echo htmlspecialchars($orden_activo['columna'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
+          <input type="hidden" name="orden_direccion" value="<?php echo htmlspecialchars($orden_activo['direccion'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>">
           <?php foreach ($filtros_activos as $filtro): ?>
             <input type="hidden" name="filtro_columna[]" value="<?php echo htmlspecialchars($filtro['columna']); ?>">
             <input type="hidden" name="filtro_operador[]" value="<?php echo htmlspecialchars($filtro['operador']); ?>">
@@ -944,6 +1006,25 @@ $csrf_token = generate_csrf_token();
           const indice = Number(boton.dataset.indice);
           const nuevosFiltros = filtrosActivos.filter((_, idx) => idx !== indice);
           enviarFiltros(nuevosFiltros);
+        });
+      });
+
+      document.querySelectorAll('.btn-ordenar').forEach((boton) => {
+        boton.addEventListener('click', (evento) => {
+          evento.preventDefault();
+          evento.stopPropagation();
+          const form = getFiltroForm();
+          if (!form) return;
+
+          const columna = boton.dataset.ordenColumna || '';
+          const direccion = boton.dataset.ordenDireccion || '';
+          const inputColumna = form.querySelector('input[name="orden_columna"]');
+          const inputDireccion = form.querySelector('input[name="orden_direccion"]');
+          if (!columna || !direccion || !inputColumna || !inputDireccion) return;
+
+          inputColumna.value = columna;
+          inputDireccion.value = direccion;
+          form.submit();
         });
       });
 

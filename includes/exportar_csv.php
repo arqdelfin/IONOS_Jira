@@ -68,6 +68,16 @@ if (isset($metadata_query['error'])) {
 }
 
 $filtros = normalizar_filtros_desde_post($_POST);
+$orden_normalizada = normalizar_orden_usuario_consulta_predefinida(
+    $_POST['orden_columna'] ?? '',
+    $_POST['orden_direccion'] ?? '',
+    $metadata_query['columnas']
+);
+if (isset($orden_normalizada['error'])) {
+    app_audit_log('csv_export', 'fail', ['reason' => 'sort_invalid', 'consulta_id' => $consulta_id]);
+    app_respond_text_error('Orden no valida', 400);
+}
+$orden_activo = $orden_normalizada['orden'];
 
 $sin_limite = isset($_POST['sin_limite']) && (string)$_POST['sin_limite'] === '1';
 if ($sin_limite && (!isset($_POST['confirmar_exportacion_sin_limite']) || (string)$_POST['confirmar_exportacion_sin_limite'] !== '1')) {
@@ -76,7 +86,7 @@ if ($sin_limite && (!isset($_POST['confirmar_exportacion_sin_limite']) || (strin
 }
 $limite_consulta = $sin_limite ? 0 : 1000;
 
-$resultado = ejecutar_consulta_predefinida($validacion_query['query'], $filtros, $limite_consulta, $metadata_query['columnas']);
+$resultado = ejecutar_consulta_predefinida($validacion_query['query'], $filtros, $limite_consulta, $metadata_query['columnas'], $orden_activo);
 if (isset($resultado['error'])) {
     app_audit_log('csv_export', 'fail', ['reason' => 'query_execution_error', 'consulta_id' => $consulta_id]);
     app_respond_text_error('Error en la consulta', 500);
